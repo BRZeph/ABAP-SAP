@@ -7,48 +7,124 @@ REPORT Y_RC_FATEC_AVALIACAO.
 
 TABLES: vbak, kna1, mara, vbap.
 
-DATA: lo_salv TYPE REF TO cl_salv_table,
-      lo_functions TYPE REF TO cl_salv_functions.
+SELECTION-SCREEN BEGIN OF SCREEN 100 AS SUBSCREEN.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME.
+ SELECT-OPTIONS:
+      s_erdat FOR vbak-erdat OBLIGATORY,
+      s_kunnr FOR kna1-kunnr,
+      s_matnr FOR mara-matnr.
+SELECTION-SCREEN END OF BLOCK b1.
+SELECTION-SCREEN END OF SCREEN 100.
 
-SELECT-OPTIONS:
-      s_erdat FOR vbak-erdat NO INTERVALS OBLIGATORY,
-      s_kunnr FOR kna1-kunnr NO INTERVALS,
-      s_matnr FOR mara-matnr NO INTERVALS.
+SELECTION-SCREEN: BEGIN OF TABBED BLOCK tabs FOR 5 LINES,
+                  TAB (20) tab1 USER-COMMAND PUSH1,
+                  END OF BLOCK tabs.
 
-START-OF-SELECTION.
 
-*colocar legenda
+CLASS y_exercicio DEFINITION.
+  PUBLIC SECTION.
+    TYPES: lv_erdat TYPE RANGE OF vbak-erdat,
+           lv_kunnr TYPE RANGE OF kna1-kunnr,
+           lv_matnr TYPE RANGE OF mara-matnr.
+    METHODS: initialize_screen,
+             select_data
+              IMPORTING s_matnr TYPE lv_matnr
+                        s_kunnr TYPE lv_kunnr
+                        s_erdat TYPE lv_erdat,
+             display_alv.
 
-  SELECT vbak~vbeln, vbak~erdat, vbak~erzet, vbak~ernam,
-         vbak~bnddt, vbak~audat, vbak~vbtyp, vbak~trvog,
-         vbak~auart, vbak~augru, vbak~kunnr, vbak~kostl,
-         vbak~stafo, vbak~aedat, vbak~cmwae, vbak~cmfre,
-         vbap~posnr, vbap~matnr
+  PRIVATE SECTION.
+    TYPES: BEGIN OF lcy_exercicio,
+      vbeln TYPE vbak-vbeln,
+      erdat TYPE vbak-erdat,
+      erzet TYPE vbak-erzet,
+      ernam TYPE vbak-ernam,
+      bnddt TYPE vbak-bnddt,
+      audat TYPE vbak-audat,
+      vbtyp TYPE vbak-vbtyp,
+      trvog TYPE vbak-trvog,
+      auart TYPE vbak-auart,
+      augru TYPE vbak-augru,
+      kunnr TYPE vbak-kunnr,
+      kostl TYPE vbak-kostl,
+      stafo TYPE vbak-stafo,
+      aedat TYPE vbak-aedat,
+      cmwae TYPE vbak-cmwae,
+      cmfre TYPE vbak-cmfre,
+      posnr TYPE vbap-posnr,
+      matnr TYPE vbap-matnr,
+          END OF lcy_exercicio.
+      DATA: lco_salv TYPE REF TO cl_salv_table,
+        lco_functions TYPE REF TO cl_salv_functions,
+        lct_exercicio TYPE TABLE OF lcy_exercicio.
+
+
+ENDCLASS.
+
+CLASS y_exercicio IMPLEMENTATION.
+
+  METHOD select_data.
+      SELECT (lct_exercicio)
     FROM vbak
+    INNER JOIN vbap ON vbak~vbeln = vbap~vbeln
     INNER JOIN kna1 ON vbak~kunnr = kna1~kunnr
-    INNER JOIN mara ON vbak~kunnr = mara~kunnr
-    INNER JOIN vbap ON mara~matnr = vbap~matnr
+    INNER JOIN mara ON vbap~matnr = mara~matnr
     WHERE vbak~erdat IN @s_erdat[] AND
           kna1~kunnr IN @s_kunnr[] AND
           mara~matnr IN @s_matnr[]
-    INTO TABLE @DATA(lt_avaliacao).
+    INTO CORRESPONDING FIELDS OF TABLE @lct_exercicio.
 
-  IF sy-subrc EQ 0.
-
-      cl_salv_table=>factory(
-        IMPORTING
-          r_salv_table = lo_salv
-        CHANGING
-          t_table      = lt_avaliacao
-          ).
-
-      lo_functions = lo_salv->get_functions( ).
-      lo_functions->set_all( abap_true ).
-
-      lo_salv->display( ).
-  ELSE.
-    MESSAGE 'Não foi possível encontrar os dados, tente novamente' TYPE 'S' DISPLAY LIKE 'E'.
-
+  IF sy-subrc NE 0.
+     MESSAGE 'Não foi possível encontrar dados, tente novamente' TYPE 'S' DISPLAY LIKE 'E'.
   ENDIF.
+
+  ENDMETHOD.
+
+  METHOD display_alv.
+
+    IF lct_exercicio IS NOT INITIAL.
+        TRY.
+            cl_salv_table=>factory(
+            IMPORTING
+              r_salv_table = lco_salv
+            CHANGING
+              t_table      = lct_exercicio
+              ).
+
+          lco_functions = lco_salv->get_functions( ).
+          lco_functions->set_all( abap_true ).
+          lco_salv->display( ).
+        CATCH cx_salv_msg.
+
+        ENDTRY.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD initialize_screen.
+
+  tab1 = 'Seleção de dados'.
+  tabs-prog = sy-repid.
+  tabs-dynnr = 100.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+DATA: lo_exercicio TYPE REF TO y_exercicio.
+
+LOAD-OF-PROGRAM.
+  CREATE OBJECT lo_exercicio.
+
+ INITIALIZATION.
+  lo_exercicio->initialize_screen( ).
+
+START-OF-SELECTION.
+
+  lo_exercicio->select_data( EXPORTING s_matnr = s_matnr[]
+                                       s_kunnr = s_kunnr[]
+                                       s_erdat = s_erdat[] ).
+
+  lo_exercicio->display_alv( ).
 
 END-OF-SELECTION.
