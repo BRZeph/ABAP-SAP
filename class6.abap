@@ -30,6 +30,9 @@ CLASS zcl_material_report DEFINITION.
                         ls_mtart TYPE lr_mtart,
              display_alv.
 
+*o select_data precisa importar dados que nao podem ser importados diretamente, entao há a necessidade
+*de declarar o que será importado na parte de tipos
+
   PRIVATE SECTION.
     TYPES: BEGIN OF lcy_exercicio,
           mtart TYPE mara-mtart,
